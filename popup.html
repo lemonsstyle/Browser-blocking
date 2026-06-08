@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Keyword Filter</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="panel">
+      <h1>屏蔽标题关键词</h1>
+      <section class="templateCard">
+        <label class="selectField">
+          <span>模板</span>
+          <select id="templateSelect"></select>
+        </label>
+        <label class="selectField">
+          <span>名称</span>
+          <input id="templateName" type="text" maxlength="40">
+        </label>
+        <div class="buttonRow">
+          <button id="newTemplate" type="button" class="secondary">新建模板</button>
+        </div>
+      </section>
+      <div class="topControls">
+        <label class="toggleRow compactToggle">
+          <input id="filterEnabled" type="checkbox" class="toggleBox">
+          <span class="toggleText">启用过滤</span>
+        </label>
+        <label class="toggleRow compactToggle">
+          <input id="invertMatch" type="checkbox" class="toggleBox">
+          <span class="toggleText">反转选择</span>
+        </label>
+      </div>
+      <p>关键词支持用逗号、空格、分号或换行分隔。</p>
+      <textarea id="keywords" spellcheck="false"></textarea>
+      <h2>编号样式过滤</h2>
+      <div class="patternCard">
+        <label class="toggleRow compactToggle">
+          <input id="patternEnabled" type="checkbox" class="toggleBox">
+          <span class="toggleText">启用编号样式过滤</span>
+        </label>
+        <div class="fieldRow">
+          <label class="inlineField">
+            <span>字母</span>
+            <input id="letterMin" type="number" min="1" max="20">
+          </label>
+          <label class="inlineField">
+            <span>到</span>
+            <input id="letterMax" type="number" min="1" max="20">
+          </label>
+          <span class="fieldSuffix">位</span>
+          <label class="inlineField">
+            <span>数字</span>
+            <input id="digitMin" type="number" min="1" max="20">
+          </label>
+          <label class="inlineField">
+            <span>到</span>
+            <input id="digitMax" type="number" min="1" max="20">
+          </label>
+          <span class="fieldSuffix">位</span>
+        </div>
+        <label class="selectField">
+          <span>分隔符</span>
+          <select id="separatorMode">
+            <option value="optional">可无、横杠或空格</option>
+            <option value="none">没有分隔符</option>
+            <option value="hyphen">只有横杠</option>
+            <option value="space">只有空格</option>
+            <option value="hyphen_or_space">横杠或空格</option>
+          </select>
+        </label>
+        <p id="patternPreview" class="preview"></p>
+      </div>
+      <button id="save" type="button">保存当前模板</button>
+      <p id="status" class="status" aria-live="polite"></p>
+      <details class="logsPanel">
+        <summary>最近命中日志</summary>
+        <button id="refreshLogs" type="button" class="secondary">刷新日志</button>
+        <textarea id="logs" readonly spellcheck="false"></textarea>
+      </details>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
