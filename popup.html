@@ -18,8 +18,14 @@
           <span>名称</span>
           <input id="templateName" type="text" maxlength="40">
         </label>
+        <label class="siteRulesField">
+          <span>适用网站 / URL 前缀</span>
+          <textarea id="siteRules" rows="2" spellcheck="false" placeholder="例如：weibo.com 或 https://weibo.com/u/"></textarea>
+        </label>
+        <p class="fieldHint">填写域名可匹配该域名及其子域名；填写完整 URL 可限定到此前缀。未填写的网站不会执行过滤。</p>
         <div class="buttonRow">
           <button id="newTemplate" type="button" class="secondary">新建模板</button>
+          <button id="useCurrentSite" type="button" class="secondary">填入当前网站</button>
         </div>
       </section>
       <div class="topControls">

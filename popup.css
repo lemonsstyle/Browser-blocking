@@ -62,6 +62,23 @@ textarea {
   white-space: nowrap;
 }
 
+.siteRulesField {
+  display: block;
+  margin-top: 6px;
+}
+
+.siteRulesField > span {
+  margin-bottom: 4px;
+}
+
+#siteRules {
+  min-height: 48px;
+}
+
+.fieldHint {
+  margin: 5px 0 0;
+}
+
 .toggleRow {
   display: flex;
   align-items: center;

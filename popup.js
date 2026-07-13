@@ -31,7 +31,9 @@ const digitMaxInput = document.getElementById("digitMax");
 const patternPreview = document.getElementById("patternPreview");
 const templateSelect = document.getElementById("templateSelect");
 const templateNameInput = document.getElementById("templateName");
+const siteRulesTextarea = document.getElementById("siteRules");
 const newTemplateButton = document.getElementById("newTemplate");
+const useCurrentSiteButton = document.getElementById("useCurrentSite");
 const saveButton = document.getElementById("save");
 const refreshLogsButton = document.getElementById("refreshLogs");
 const logsTextarea = document.getElementById("logs");
@@ -60,7 +62,21 @@ function parseKeywords(value) {
     .filter(Boolean);
 }
 
+function parseSiteRules(value) {
+  return value
+    .split(/[\n,，;；]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function normalizeKeywords(value, fallback = DEFAULT_KEYWORDS) {
+  const source = Array.isArray(value) ? value : fallback;
+  return source
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+}
+
+function normalizeSiteRules(value, fallback = []) {
   const source = Array.isArray(value) ? value : fallback;
   return source
     .map((item) => String(item).trim())
@@ -146,6 +162,7 @@ function getLegacyDefaultTemplate(result = {}) {
     id: DEFAULT_TEMPLATE_ID,
     name: DEFAULT_TEMPLATE_NAME,
     keywords: normalizeKeywords(result[STORAGE_KEY]),
+    siteRules: [],
     codePattern: normalizeCodePattern(isRecord(result[PATTERN_KEY]) ? result[PATTERN_KEY] : DEFAULT_CODE_PATTERN),
     filterEnabled: typeof result[ENABLED_KEY] === "boolean" ? result[ENABLED_KEY] : true,
     invertMatch: typeof result[INVERT_KEY] === "boolean" ? result[INVERT_KEY] : false,
@@ -161,6 +178,7 @@ function normalizeTemplate(rawTemplate, id, fallback) {
     id,
     name: normalizeTemplateName(source.name, fallbackTemplate.name || DEFAULT_TEMPLATE_NAME),
     keywords: normalizeKeywords(source.keywords, fallbackTemplate.keywords || DEFAULT_KEYWORDS),
+    siteRules: normalizeSiteRules(source.siteRules),
     codePattern: normalizeCodePattern(isRecord(source.codePattern) ? source.codePattern : fallbackTemplate.codePattern),
     filterEnabled: typeof source.filterEnabled === "boolean"
       ? source.filterEnabled
@@ -193,6 +211,7 @@ function normalizeTemplates(result = {}) {
 function readSettingsFromForm() {
   return {
     keywords: parseKeywords(textarea.value),
+    siteRules: parseSiteRules(siteRulesTextarea.value),
     codePattern: readPatternFromForm(),
     filterEnabled: filterEnabledInput.checked,
     invertMatch: invertMatchInput.checked
@@ -201,6 +220,7 @@ function readSettingsFromForm() {
 
 function writeTemplateToForm(template) {
   textarea.value = normalizeKeywords(template.keywords, []).join("，");
+  siteRulesTextarea.value = normalizeSiteRules(template.siteRules).join("\n");
   filterEnabledInput.checked = template.filterEnabled !== false;
   invertMatchInput.checked = template.invertMatch === true;
   writePatternToForm(template.codePattern);
@@ -214,6 +234,7 @@ function buildTemplateFromForm(id) {
     id,
     name: normalizeTemplateName(templateNameInput.value, previousTemplate.name || DEFAULT_TEMPLATE_NAME),
     keywords: settings.keywords,
+    siteRules: settings.siteRules,
     codePattern: settings.codePattern,
     filterEnabled: settings.filterEnabled,
     invertMatch: settings.invertMatch,
@@ -334,6 +355,29 @@ function createTemplate() {
   saveTemplateState("已新建模板");
 }
 
+function addCurrentSiteRule() {
+  getCurrentTab((pageUrl) => {
+    try {
+      const currentUrl = new URL(pageUrl);
+      if (!/^https?:$/.test(currentUrl.protocol) || !currentUrl.hostname) {
+        setStatus("当前页面不能作为网站规则");
+        return;
+      }
+
+      const currentHost = currentUrl.hostname.replace(/^www\./i, "");
+      const rules = parseSiteRules(siteRulesTextarea.value);
+      if (!rules.includes(currentHost)) {
+        rules.push(currentHost);
+        siteRulesTextarea.value = rules.join("\n");
+      }
+
+      setStatus("已填入当前网站，请保存");
+    } catch {
+      setStatus("当前页面不能作为网站规则");
+    }
+  });
+}
+
 function loadTemplates() {
   chrome.storage.sync.get(
     [STORAGE_KEY, PATTERN_KEY, ENABLED_KEY, INVERT_KEY, TEMPLATES_KEY, ACTIVE_TEMPLATE_KEY],
@@ -410,6 +454,7 @@ templateSelect.addEventListener("change", () => {
 });
 
 newTemplateButton.addEventListener("click", createTemplate);
+useCurrentSiteButton.addEventListener("click", addCurrentSiteRule);
 saveButton.addEventListener("click", () => saveCurrentTemplate());
 refreshLogsButton.addEventListener("click", loadLogs);
 
