@@ -8,6 +8,7 @@ const INVERT_KEY = "invertMatch";
 const LOG_KEY = "filterDebugLogs";
 const TEMPLATES_KEY = "keywordFilterTemplates";
 const ACTIVE_TEMPLATE_KEY = "keywordFilterActiveTemplate";
+const TITLE_DEDUPE_KEY = "duplicateTitleFilter";
 const DEFAULT_TEMPLATE_ID = "default";
 const DEFAULT_TEMPLATE_NAME = "默认模板";
 const DEFAULT_CODE_PATTERN = {
@@ -17,6 +18,10 @@ const DEFAULT_CODE_PATTERN = {
   separatorMode: "optional",
   digitMin: 3,
   digitMax: 4
+};
+const DEFAULT_TITLE_DEDUPE = {
+  enabled: false,
+  threshold: 80
 };
 
 const textarea = document.getElementById("keywords");
@@ -28,19 +33,26 @@ const letterMaxInput = document.getElementById("letterMax");
 const separatorModeInput = document.getElementById("separatorMode");
 const digitMinInput = document.getElementById("digitMin");
 const digitMaxInput = document.getElementById("digitMax");
-const patternPreview = document.getElementById("patternPreview");
+const dedupeEnabledInput = document.getElementById("dedupeEnabled");
+const dedupeThresholdInput = document.getElementById("dedupeThreshold");
+const dedupeThresholdValue = document.getElementById("dedupeThresholdValue");
 const templateSelect = document.getElementById("templateSelect");
 const templateNameInput = document.getElementById("templateName");
 const siteRulesTextarea = document.getElementById("siteRules");
 const newTemplateButton = document.getElementById("newTemplate");
 const useCurrentSiteButton = document.getElementById("useCurrentSite");
 const saveButton = document.getElementById("save");
-const refreshLogsButton = document.getElementById("refreshLogs");
+const showLogsButton = document.getElementById("showLogs");
+const closeLogsButton = document.getElementById("closeLogs");
+const logsDialog = document.getElementById("logsDialog");
 const logsTextarea = document.getElementById("logs");
 const status = document.getElementById("status");
+const helpPopover = document.getElementById("helpPopover");
+const infoButtons = document.querySelectorAll(".infoButton");
 
 let templates = {};
 let selectedTemplateId = DEFAULT_TEMPLATE_ID;
+let activeInfoButton = null;
 
 function setStatus(message) {
   status.textContent = message;
@@ -118,21 +130,21 @@ function normalizeCodePattern(pattern) {
   };
 }
 
-function buildPatternPreview(pattern) {
-  const normalized = normalizeCodePattern(pattern);
-  if (!normalized.enabled) {
-    return "当前未启用编号样式过滤";
+function clampPercentage(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 50 || parsed > 100) {
+    return fallback;
   }
+  return parsed;
+}
 
-  const separatorTextMap = {
-    optional: "中间可没有分隔符，也可用横杠或空格",
-    none: "中间没有分隔符",
-    hyphen: "中间只用横杠",
-    space: "中间只用空格",
-    hyphen_or_space: "中间用横杠或空格"
+function normalizeTitleDedupe(config) {
+  const source = isRecord(config) ? config : {};
+
+  return {
+    enabled: source.enabled === true,
+    threshold: clampPercentage(source.threshold, DEFAULT_TITLE_DEDUPE.threshold)
   };
-
-  return `匹配 ${normalized.letterMin}-${normalized.letterMax} 位字母，${separatorTextMap[normalized.separatorMode]}，再接 ${normalized.digitMin}-${normalized.digitMax} 位数字`;
 }
 
 function readPatternFromForm() {
@@ -146,6 +158,13 @@ function readPatternFromForm() {
   });
 }
 
+function readDedupeFromForm() {
+  return normalizeTitleDedupe({
+    enabled: dedupeEnabledInput.checked,
+    threshold: dedupeThresholdInput.value
+  });
+}
+
 function writePatternToForm(pattern) {
   const normalized = normalizeCodePattern(pattern);
   patternEnabledInput.checked = normalized.enabled;
@@ -154,7 +173,51 @@ function writePatternToForm(pattern) {
   separatorModeInput.value = normalized.separatorMode;
   digitMinInput.value = String(normalized.digitMin);
   digitMaxInput.value = String(normalized.digitMax);
-  patternPreview.textContent = buildPatternPreview(normalized);
+}
+
+function writeDedupeToForm(config) {
+  const normalized = normalizeTitleDedupe(config);
+  dedupeEnabledInput.checked = normalized.enabled;
+  dedupeThresholdInput.value = String(normalized.threshold);
+  dedupeThresholdValue.value = `${normalized.threshold}%`;
+}
+
+function closeHelpPopover() {
+  if (!activeInfoButton) {
+    return;
+  }
+
+  activeInfoButton.setAttribute("aria-expanded", "false");
+  activeInfoButton = null;
+  helpPopover.hidden = true;
+}
+
+function positionHelpPopover(button) {
+  const buttonRect = button.getBoundingClientRect();
+  const popoverWidth = helpPopover.getBoundingClientRect().width;
+  const popoverHeight = helpPopover.getBoundingClientRect().height;
+  const maximumLeft = window.innerWidth - popoverWidth - 12;
+  const preferredTop = buttonRect.bottom + 6;
+  const maximumTop = window.innerHeight - popoverHeight - 12;
+  helpPopover.style.left = `${Math.max(12, Math.min(buttonRect.left, maximumLeft))}px`;
+  helpPopover.style.top = `${preferredTop <= maximumTop ? preferredTop : Math.max(12, buttonRect.top - popoverHeight - 6)}px`;
+}
+
+function toggleHelpPopover(button) {
+  if (activeInfoButton === button) {
+    closeHelpPopover();
+    return;
+  }
+
+  if (activeInfoButton) {
+    activeInfoButton.setAttribute("aria-expanded", "false");
+  }
+
+  activeInfoButton = button;
+  helpPopover.textContent = button.dataset.help || "";
+  helpPopover.hidden = false;
+  button.setAttribute("aria-expanded", "true");
+  positionHelpPopover(button);
 }
 
 function getLegacyDefaultTemplate(result = {}) {
@@ -164,6 +227,7 @@ function getLegacyDefaultTemplate(result = {}) {
     keywords: normalizeKeywords(result[STORAGE_KEY]),
     siteRules: [],
     codePattern: normalizeCodePattern(isRecord(result[PATTERN_KEY]) ? result[PATTERN_KEY] : DEFAULT_CODE_PATTERN),
+    titleDedupe: normalizeTitleDedupe(isRecord(result[TITLE_DEDUPE_KEY]) ? result[TITLE_DEDUPE_KEY] : DEFAULT_TITLE_DEDUPE),
     filterEnabled: typeof result[ENABLED_KEY] === "boolean" ? result[ENABLED_KEY] : true,
     invertMatch: typeof result[INVERT_KEY] === "boolean" ? result[INVERT_KEY] : false,
     updatedAt: ""
@@ -180,6 +244,7 @@ function normalizeTemplate(rawTemplate, id, fallback) {
     keywords: normalizeKeywords(source.keywords, fallbackTemplate.keywords || DEFAULT_KEYWORDS),
     siteRules: normalizeSiteRules(source.siteRules),
     codePattern: normalizeCodePattern(isRecord(source.codePattern) ? source.codePattern : fallbackTemplate.codePattern),
+    titleDedupe: normalizeTitleDedupe(source.titleDedupe),
     filterEnabled: typeof source.filterEnabled === "boolean"
       ? source.filterEnabled
       : fallbackTemplate.filterEnabled !== false,
@@ -213,6 +278,7 @@ function readSettingsFromForm() {
     keywords: parseKeywords(textarea.value),
     siteRules: parseSiteRules(siteRulesTextarea.value),
     codePattern: readPatternFromForm(),
+    titleDedupe: readDedupeFromForm(),
     filterEnabled: filterEnabledInput.checked,
     invertMatch: invertMatchInput.checked
   };
@@ -224,6 +290,7 @@ function writeTemplateToForm(template) {
   filterEnabledInput.checked = template.filterEnabled !== false;
   invertMatchInput.checked = template.invertMatch === true;
   writePatternToForm(template.codePattern);
+  writeDedupeToForm(template.titleDedupe);
 }
 
 function buildTemplateFromForm(id) {
@@ -236,6 +303,7 @@ function buildTemplateFromForm(id) {
     keywords: settings.keywords,
     siteRules: settings.siteRules,
     codePattern: settings.codePattern,
+    titleDedupe: settings.titleDedupe,
     filterEnabled: settings.filterEnabled,
     invertMatch: settings.invertMatch,
     updatedAt: new Date().toISOString()
@@ -285,7 +353,23 @@ function getCurrentTab(callback) {
   });
 }
 
-function saveTemplateState(message) {
+function refreshCurrentTab() {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const currentTab = Array.isArray(tabs) ? tabs[0] : null;
+    if (chrome.runtime.lastError || !currentTab || typeof currentTab.id !== "number") {
+      setStatus("模板已保存，请手动刷新页面");
+      return;
+    }
+
+    chrome.tabs.reload(currentTab.id, {}, () => {
+      if (chrome.runtime.lastError) {
+        setStatus("模板已保存，但刷新失败");
+      }
+    });
+  });
+}
+
+function saveTemplateState(message, refreshPage = false) {
   const defaultTemplate = templates[DEFAULT_TEMPLATE_ID] || getLegacyDefaultTemplate();
 
   chrome.storage.sync.set(
@@ -294,6 +378,7 @@ function saveTemplateState(message) {
       [ACTIVE_TEMPLATE_KEY]: selectedTemplateId,
       [STORAGE_KEY]: defaultTemplate.keywords,
       [PATTERN_KEY]: defaultTemplate.codePattern,
+      [TITLE_DEDUPE_KEY]: defaultTemplate.titleDedupe,
       [ENABLED_KEY]: defaultTemplate.filterEnabled,
       [INVERT_KEY]: defaultTemplate.invertMatch
     },
@@ -305,14 +390,16 @@ function saveTemplateState(message) {
 
       renderTemplates();
       setStatus(message);
-      loadLogs();
+      if (refreshPage) {
+        refreshCurrentTab();
+      }
     }
   );
 }
 
 function saveCurrentTemplate() {
   templates[selectedTemplateId] = buildTemplateFromForm(selectedTemplateId);
-  saveTemplateState("已保存模板");
+  saveTemplateState("模板已保存，正在刷新页面", true);
 }
 
 function saveActiveTemplateSelection() {
@@ -327,7 +414,6 @@ function saveActiveTemplateSelection() {
       }
 
       setStatus("已切换模板");
-      loadLogs();
     }
   );
 }
@@ -380,7 +466,7 @@ function addCurrentSiteRule() {
 
 function loadTemplates() {
   chrome.storage.sync.get(
-    [STORAGE_KEY, PATTERN_KEY, ENABLED_KEY, INVERT_KEY, TEMPLATES_KEY, ACTIVE_TEMPLATE_KEY],
+    [STORAGE_KEY, PATTERN_KEY, TITLE_DEDUPE_KEY, ENABLED_KEY, INVERT_KEY, TEMPLATES_KEY, ACTIVE_TEMPLATE_KEY],
     (result) => {
       if (chrome.runtime.lastError) {
         templates = {
@@ -404,6 +490,9 @@ function loadTemplates() {
 function getLogLabel(entry) {
   const ruleType = entry.ruleType || "keyword";
   const keyword = entry.keyword || "";
+  if (ruleType === "duplicate") {
+    return entry.similarity ? `去重 ${entry.similarity}%` : "去重";
+  }
   return ruleType === "pattern" ? "正则" : keyword;
 }
 
@@ -446,6 +535,14 @@ function loadLogs() {
   });
 }
 
+function openLogsDialog() {
+  closeHelpPopover();
+  loadLogs();
+  if (!logsDialog.open) {
+    logsDialog.showModal();
+  }
+}
+
 templateSelect.addEventListener("change", () => {
   selectedTemplateId = templateSelect.value;
   writeTemplateToForm(getCurrentTemplate());
@@ -456,7 +553,38 @@ templateSelect.addEventListener("change", () => {
 newTemplateButton.addEventListener("click", createTemplate);
 useCurrentSiteButton.addEventListener("click", addCurrentSiteRule);
 saveButton.addEventListener("click", () => saveCurrentTemplate());
-refreshLogsButton.addEventListener("click", loadLogs);
+showLogsButton.addEventListener("click", openLogsDialog);
+closeLogsButton.addEventListener("click", () => logsDialog.close());
+logsDialog.addEventListener("click", (event) => {
+  if (event.target === logsDialog) {
+    logsDialog.close();
+  }
+});
+
+infoButtons.forEach((button) => {
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleHelpPopover(button);
+  });
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".infoButton") && !event.target.closest("#helpPopover")) {
+    closeHelpPopover();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeHelpPopover();
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (activeInfoButton) {
+    positionHelpPopover(activeInfoButton);
+  }
+});
 
 [
   patternEnabledInput,
@@ -474,5 +602,16 @@ refreshLogsButton.addEventListener("click", loadLogs);
   });
 });
 
+[
+  dedupeEnabledInput,
+  dedupeThresholdInput
+].forEach((element) => {
+  element.addEventListener("input", () => {
+    writeDedupeToForm(readDedupeFromForm());
+  });
+  element.addEventListener("change", () => {
+    writeDedupeToForm(readDedupeFromForm());
+  });
+});
+
 loadTemplates();
-loadLogs();

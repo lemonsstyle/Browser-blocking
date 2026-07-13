@@ -8,10 +8,12 @@ const INVERT_KEY = "invertMatch";
 const LOG_KEY = "filterDebugLogs";
 const TEMPLATES_KEY = "keywordFilterTemplates";
 const ACTIVE_TEMPLATE_KEY = "keywordFilterActiveTemplate";
+const TITLE_DEDUPE_KEY = "duplicateTitleFilter";
 const DEFAULT_TEMPLATE_ID = "default";
 const DEFAULT_TEMPLATE_NAME = "默认模板";
 const MAX_LOGS = 50;
 const PAGE_LOG_LIMIT = 100;
+const MIN_DEDUPE_TITLE_LENGTH = 6;
 const DEFAULT_CODE_PATTERN = {
   enabled: true,
   letterMin: 3,
@@ -20,14 +22,20 @@ const DEFAULT_CODE_PATTERN = {
   digitMin: 3,
   digitMax: 4
 };
+const DEFAULT_TITLE_DEDUPE = {
+  enabled: false,
+  threshold: 80
+};
 
 let activeKeywords = [...DEFAULT_KEYWORDS];
 let activeCodePattern = { ...DEFAULT_CODE_PATTERN };
+let activeTitleDedupe = { ...DEFAULT_TITLE_DEDUPE };
 let filterEnabled = true;
 let invertMatch = false;
 let compiledPattern = buildPattern(activeKeywords);
 let compiledCodePattern = buildCodePattern(activeCodePattern);
 let observer;
+let filterPageTimer = null;
 let pendingLogEntries = [];
 let logFlushTimer = null;
 let logWriteInProgress = false;
@@ -97,6 +105,23 @@ function normalizeCodePattern(pattern) {
   };
 }
 
+function clampPercentage(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 50 || parsed > 100) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function normalizeTitleDedupe(config) {
+  const source = isRecord(config) ? config : {};
+
+  return {
+    enabled: source.enabled === true,
+    threshold: clampPercentage(source.threshold, DEFAULT_TITLE_DEDUPE.threshold)
+  };
+}
+
 function getLegacyDefaultTemplate(result = {}) {
   return {
     id: DEFAULT_TEMPLATE_ID,
@@ -104,6 +129,7 @@ function getLegacyDefaultTemplate(result = {}) {
     keywords: normalizeKeywords(result[STORAGE_KEY]),
     siteRules: [],
     codePattern: normalizeCodePattern(isRecord(result[PATTERN_KEY]) ? result[PATTERN_KEY] : DEFAULT_CODE_PATTERN),
+    titleDedupe: normalizeTitleDedupe(isRecord(result[TITLE_DEDUPE_KEY]) ? result[TITLE_DEDUPE_KEY] : DEFAULT_TITLE_DEDUPE),
     filterEnabled: typeof result[ENABLED_KEY] === "boolean" ? result[ENABLED_KEY] : true,
     invertMatch: typeof result[INVERT_KEY] === "boolean" ? result[INVERT_KEY] : false,
     updatedAt: ""
@@ -120,6 +146,7 @@ function normalizeTemplate(rawTemplate, id, fallback) {
     keywords: normalizeKeywords(source.keywords, fallbackTemplate.keywords || DEFAULT_KEYWORDS),
     siteRules: normalizeSiteRules(source.siteRules),
     codePattern: normalizeCodePattern(isRecord(source.codePattern) ? source.codePattern : fallbackTemplate.codePattern),
+    titleDedupe: normalizeTitleDedupe(source.titleDedupe),
     filterEnabled: typeof source.filterEnabled === "boolean"
       ? source.filterEnabled
       : fallbackTemplate.filterEnabled !== false,
@@ -266,6 +293,34 @@ function normalizeText(text) {
   return (text || "").replace(/\s+/g, " ").trim();
 }
 
+function getTitleText(element) {
+  if (!(element instanceof HTMLElement)) {
+    return "";
+  }
+
+  const titleNodes = element.querySelectorAll(
+    "h1, h2, h3, h4, h5, h6, a, [class*='title'], [class*='name']"
+  );
+  const seenTexts = new Set();
+  const titleTexts = [];
+
+  Array.from(titleNodes).forEach((node) => {
+    const text = normalizeText(node.textContent);
+    if (!text || seenTexts.has(text)) {
+      return;
+    }
+
+    seenTexts.add(text);
+    titleTexts.push(text);
+  });
+
+  if (titleTexts.length) {
+    return titleTexts.sort((left, right) => right.length - left.length)[0];
+  }
+
+  return normalizeText(element.innerText || element.textContent);
+}
+
 function isMatch(text) {
   return compiledPattern ? compiledPattern.test(normalizeText(text)) : false;
 }
@@ -298,6 +353,127 @@ function getRelevantText(element) {
     .join(" ");
 
   return titleText || normalizeText(element.innerText || element.textContent);
+}
+
+function normalizeTitleForDedupe(text) {
+  return normalizeText(text)
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s\p{P}\p{S}_]+/gu, "");
+}
+
+function getLevenshteinDistance(left, right) {
+  if (left === right) {
+    return 0;
+  }
+
+  if (!left.length) {
+    return right.length;
+  }
+
+  if (!right.length) {
+    return left.length;
+  }
+
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const current = new Array(right.length + 1);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    current[0] = leftIndex;
+
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const cost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      current[rightIndex] = Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + cost
+      );
+    }
+
+    for (let rightIndex = 0; rightIndex <= right.length; rightIndex += 1) {
+      previous[rightIndex] = current[rightIndex];
+    }
+  }
+
+  return previous[right.length];
+}
+
+function getTitleSimilarity(left, right) {
+  if (!left || !right) {
+    return 0;
+  }
+
+  if (left === right) {
+    return 1;
+  }
+
+  const maxLength = Math.max(left.length, right.length);
+  if (maxLength === 0) {
+    return 1;
+  }
+
+  return (maxLength - getLevenshteinDistance(left, right)) / maxLength;
+}
+
+function createDedupeContext() {
+  return {
+    enabled: filterEnabled && activeTitleDedupe.enabled === true,
+    threshold: activeTitleDedupe.threshold / 100,
+    seenTitles: []
+  };
+}
+
+function findDuplicateTitle(title, context) {
+  if (!context?.enabled) {
+    return null;
+  }
+
+  const normalizedTitle = normalizeTitleForDedupe(title);
+  if (normalizedTitle.length < MIN_DEDUPE_TITLE_LENGTH) {
+    return null;
+  }
+
+  let bestMatch = null;
+
+  context.seenTitles.forEach((seenTitle) => {
+    const maxLength = Math.max(normalizedTitle.length, seenTitle.normalized.length);
+    const minLength = Math.min(normalizedTitle.length, seenTitle.normalized.length);
+    if (maxLength === 0 || minLength / maxLength < context.threshold) {
+      return;
+    }
+
+    const similarity = getTitleSimilarity(normalizedTitle, seenTitle.normalized);
+    if (similarity >= context.threshold && (!bestMatch || similarity > bestMatch.similarity)) {
+      bestMatch = {
+        similarity,
+        title: seenTitle.original
+      };
+    }
+  });
+
+  if (bestMatch) {
+    return bestMatch;
+  }
+
+  rememberTitleForDedupe(title, context);
+
+  return null;
+}
+
+function rememberTitleForDedupe(title, context) {
+  if (!context?.enabled) {
+    return;
+  }
+
+  const normalizedTitle = normalizeTitleForDedupe(title);
+  if (normalizedTitle.length < MIN_DEDUPE_TITLE_LENGTH) {
+    return;
+  }
+
+  context.seenTitles.push({
+    normalized: normalizedTitle,
+    original: title
+  });
 }
 
 function isLikelyStandaloneResult(element) {
@@ -459,7 +635,7 @@ function restoreElement(element) {
   delete element.dataset.keywordFilterOriginalDisplay;
 }
 
-function evaluateCandidate(element) {
+function evaluateCandidate(element, dedupeContext = createDedupeContext()) {
   if (!(element instanceof HTMLElement)) {
     return;
   }
@@ -477,7 +653,14 @@ function evaluateCandidate(element) {
   const matchedKeyword = getMatchedKeyword(text);
   const matchedCodePattern = matchedKeyword ? null : getMatchedCodePattern(text);
   const matched = Boolean(matchedKeyword || matchedCodePattern);
-  const shouldHide = invertMatch ? !matched : matched;
+  const shouldHideByRule = invertMatch ? !matched : matched;
+  const title = getTitleText(element);
+  const duplicateTitle = shouldHideByRule ? null : findDuplicateTitle(title, dedupeContext);
+  const shouldHide = shouldHideByRule || Boolean(duplicateTitle);
+
+  if (shouldHideByRule && !invertMatch) {
+    rememberTitleForDedupe(title, dedupeContext);
+  }
 
   if (shouldHide) {
     const hiddenNow = hideElement(element);
@@ -487,6 +670,17 @@ function evaluateCandidate(element) {
         ruleType: matchedKeyword ? "keyword" : "pattern",
         keyword: matchedKeyword || matchedCodePattern,
         text: text.slice(0, 120),
+        tag: element.tagName,
+        className: String(element.className || "").slice(0, 120)
+      });
+    } else if (duplicateTitle && hiddenNow) {
+      appendDebugLog({
+        time: new Date().toISOString(),
+        ruleType: "duplicate",
+        keyword: "相似标题去重",
+        similarity: Math.round(duplicateTitle.similarity * 100),
+        matchedTitle: duplicateTitle.title.slice(0, 120),
+        text: title.slice(0, 120),
         tag: element.tagName,
         className: String(element.className || "").slice(0, 120)
       });
@@ -539,7 +733,23 @@ function collectCandidates(root = document) {
 }
 
 function filterPage(root = document) {
-  collectCandidates(root).forEach(evaluateCandidate);
+  const candidates = collectCandidates(root);
+  const dedupeContext = createDedupeContext();
+
+  candidates.forEach((candidate) => {
+    evaluateCandidate(candidate, dedupeContext);
+  });
+}
+
+function scheduleFilterPage() {
+  if (filterPageTimer !== null) {
+    return;
+  }
+
+  filterPageTimer = window.setTimeout(() => {
+    filterPageTimer = null;
+    filterPage();
+  }, 50);
 }
 
 function restartObserver() {
@@ -548,15 +758,26 @@ function restartObserver() {
   }
 
   observer = new MutationObserver((mutations) => {
+    let needsFullScan = false;
+
     for (const mutation of mutations) {
       mutation.addedNodes.forEach((node) => {
         if (!(node instanceof HTMLElement)) {
           return;
         }
 
+        if (activeTitleDedupe.enabled) {
+          needsFullScan = true;
+          return;
+        }
+
         evaluateCandidate(node);
         filterPage(node);
       });
+    }
+
+    if (needsFullScan) {
+      scheduleFilterPage();
     }
   });
 
@@ -569,6 +790,7 @@ function restartObserver() {
 function applyTemplate(template) {
   activeKeywords = normalizeKeywords(template.keywords, []);
   activeCodePattern = normalizeCodePattern(template.codePattern);
+  activeTitleDedupe = normalizeTitleDedupe(template.titleDedupe);
   filterEnabled = template.filterEnabled !== false;
   invertMatch = template.invertMatch === true;
   compiledPattern = buildPattern(activeKeywords);
@@ -579,7 +801,7 @@ function applyTemplate(template) {
 
 function loadSettings() {
   chrome.storage.sync.get(
-    [STORAGE_KEY, PATTERN_KEY, ENABLED_KEY, INVERT_KEY, TEMPLATES_KEY, ACTIVE_TEMPLATE_KEY],
+    [STORAGE_KEY, PATTERN_KEY, TITLE_DEDUPE_KEY, ENABLED_KEY, INVERT_KEY, TEMPLATES_KEY, ACTIVE_TEMPLATE_KEY],
     (result) => {
       const template = chrome.runtime.lastError
         ? getLegacyDefaultTemplate()
@@ -597,6 +819,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   const watchedKeys = [
     STORAGE_KEY,
     PATTERN_KEY,
+    TITLE_DEDUPE_KEY,
     ENABLED_KEY,
     INVERT_KEY,
     TEMPLATES_KEY,

@@ -8,21 +8,29 @@
   </head>
   <body>
     <main class="panel">
-      <h1>屏蔽标题关键词</h1>
+      <div class="sectionHeader mainHeader">
+        <h1>屏蔽标题关键词</h1>
+        <button type="button" class="infoButton" aria-label="查看关键词过滤说明" aria-expanded="false" data-help="输入要屏蔽的标题词，支持逗号、空格、分号和换行分隔。启用过滤后命中条目会隐藏；开启反转选择后，仅保留命中的条目。">i</button>
+      </div>
+      <div class="sectionHeader templateHeader">
+        <h2>模板</h2>
+        <button type="button" class="infoButton" aria-label="查看模板说明" aria-expanded="false" data-help="每个模板包含一套过滤设置和适用网站。填写 weibo.com 可匹配其所有子域名；填写完整 URL 可限定到此前缀。没有适用网站的模板不会执行过滤。">i</button>
+      </div>
       <section class="templateCard">
-        <label class="selectField">
-          <span>模板</span>
-          <select id="templateSelect"></select>
-        </label>
-        <label class="selectField">
-          <span>名称</span>
-          <input id="templateName" type="text" maxlength="40">
-        </label>
+        <div class="templateFields">
+          <label class="selectField templateField">
+            <span>模板</span>
+            <select id="templateSelect"></select>
+          </label>
+          <label class="selectField templateField">
+            <span>名称</span>
+            <input id="templateName" type="text" maxlength="40">
+          </label>
+        </div>
         <label class="siteRulesField">
           <span>适用网站 / URL 前缀</span>
-          <textarea id="siteRules" rows="2" spellcheck="false" placeholder="例如：weibo.com 或 https://weibo.com/u/"></textarea>
+          <textarea id="siteRules" rows="1" spellcheck="false" placeholder="例如：weibo.com 或 https://weibo.com/u/"></textarea>
         </label>
-        <p class="fieldHint">填写域名可匹配该域名及其子域名；填写完整 URL 可限定到此前缀。未填写的网站不会执行过滤。</p>
         <div class="buttonRow">
           <button id="newTemplate" type="button" class="secondary">新建模板</button>
           <button id="useCurrentSite" type="button" class="secondary">填入当前网站</button>
@@ -31,21 +39,25 @@
       <div class="topControls">
         <label class="toggleRow compactToggle">
           <input id="filterEnabled" type="checkbox" class="toggleBox">
+          <span class="toggleSwitch" aria-hidden="true"></span>
           <span class="toggleText">启用过滤</span>
         </label>
         <label class="toggleRow compactToggle">
           <input id="invertMatch" type="checkbox" class="toggleBox">
+          <span class="toggleSwitch" aria-hidden="true"></span>
           <span class="toggleText">反转选择</span>
         </label>
       </div>
-      <p>关键词支持用逗号、空格、分号或换行分隔。</p>
       <textarea id="keywords" spellcheck="false"></textarea>
-      <h2>编号样式过滤</h2>
-      <div class="patternCard">
-        <label class="toggleRow compactToggle">
-          <input id="patternEnabled" type="checkbox" class="toggleBox">
-          <span class="toggleText">启用编号样式过滤</span>
+      <div class="sectionHeader">
+        <h2>编号样式过滤</h2>
+        <button type="button" class="infoButton" aria-label="查看编号样式过滤说明" aria-expanded="false" data-help="按字母位数、分隔符和数字位数识别编号样式。命中该样式的条目会被隐藏。">i</button>
+        <label class="titleToggle">
+          <input id="patternEnabled" type="checkbox" class="toggleBox" aria-label="启用编号样式过滤">
+          <span class="toggleSwitch" aria-hidden="true"></span>
         </label>
+      </div>
+      <div class="patternCard">
         <div class="fieldRow">
           <label class="inlineField">
             <span>字母</span>
@@ -76,16 +88,38 @@
             <option value="hyphen_or_space">横杠或空格</option>
           </select>
         </label>
-        <p id="patternPreview" class="preview"></p>
       </div>
-      <button id="save" type="button">保存当前模板</button>
+      <div class="sectionHeader">
+        <h2>相似标题去重</h2>
+        <button type="button" class="infoButton" aria-label="查看相似标题去重说明" aria-expanded="false" data-help="保留最先出现的标题，隐藏后续达到重复度阈值的相似标题。滑块越高，过滤越严格。">i</button>
+        <label class="titleToggle">
+          <input id="dedupeEnabled" type="checkbox" class="toggleBox" aria-label="启用相似标题去重">
+          <span class="toggleSwitch" aria-hidden="true"></span>
+        </label>
+      </div>
+      <div class="dedupeCard">
+        <div class="rangeField">
+          <div class="rangeHeader">
+            <span>重复度</span>
+            <output id="dedupeThresholdValue" for="dedupeThreshold">80%</output>
+          </div>
+          <input id="dedupeThreshold" type="range" min="50" max="100" step="1" value="80">
+        </div>
+      </div>
+      <div class="actionRow">
+        <button id="showLogs" type="button" class="secondary">屏蔽列表</button>
+        <button id="save" type="button">保存并刷新页面</button>
+      </div>
       <p id="status" class="status" aria-live="polite"></p>
-      <details class="logsPanel">
-        <summary>最近命中日志</summary>
-        <button id="refreshLogs" type="button" class="secondary">刷新日志</button>
-        <textarea id="logs" readonly spellcheck="false"></textarea>
-      </details>
     </main>
+    <div id="helpPopover" class="helpPopover" role="tooltip" hidden></div>
+    <dialog id="logsDialog" class="logsDialog" aria-labelledby="logsDialogTitle">
+      <div class="dialogHeader">
+        <h2 id="logsDialogTitle">屏蔽列表</h2>
+        <button id="closeLogs" type="button" class="dialogClose" aria-label="关闭屏蔽列表">×</button>
+      </div>
+      <textarea id="logs" readonly spellcheck="false"></textarea>
+    </dialog>
     <script src="popup.js"></script>
   </body>
 </html>
