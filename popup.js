@@ -15,9 +15,9 @@ const DEFAULT_CODE_PATTERN = {
   enabled: true,
   letterMin: 3,
   letterMax: 5,
-  separatorMode: "optional",
+  separatorMode: "hyphen",
   digitMin: 3,
-  digitMax: 4
+  digitMax: 5
 };
 const DEFAULT_TITLE_DEDUPE = {
   enabled: false,
@@ -28,17 +28,12 @@ const textarea = document.getElementById("keywords");
 const filterEnabledInput = document.getElementById("filterEnabled");
 const invertMatchInput = document.getElementById("invertMatch");
 const patternEnabledInput = document.getElementById("patternEnabled");
-const letterMinInput = document.getElementById("letterMin");
-const letterMaxInput = document.getElementById("letterMax");
-const separatorModeInput = document.getElementById("separatorMode");
-const digitMinInput = document.getElementById("digitMin");
-const digitMaxInput = document.getElementById("digitMax");
 const dedupeEnabledInput = document.getElementById("dedupeEnabled");
 const dedupeThresholdInput = document.getElementById("dedupeThreshold");
 const dedupeThresholdValue = document.getElementById("dedupeThresholdValue");
 const templateSelect = document.getElementById("templateSelect");
 const templateNameInput = document.getElementById("templateName");
-const siteRulesTextarea = document.getElementById("siteRules");
+const siteRulesInput = document.getElementById("siteRules");
 const newTemplateButton = document.getElementById("newTemplate");
 const useCurrentSiteButton = document.getElementById("useCurrentSite");
 const saveButton = document.getElementById("save");
@@ -100,33 +95,10 @@ function normalizeTemplateName(value, fallback) {
   return name || fallback;
 }
 
-function clampLength(value, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 20) {
-    return fallback;
-  }
-  return parsed;
-}
-
 function normalizeCodePattern(pattern) {
-  const letterMin = clampLength(pattern?.letterMin, DEFAULT_CODE_PATTERN.letterMin);
-  const letterMax = clampLength(pattern?.letterMax, DEFAULT_CODE_PATTERN.letterMax);
-  const digitMin = clampLength(pattern?.digitMin, DEFAULT_CODE_PATTERN.digitMin);
-  const digitMax = clampLength(pattern?.digitMax, DEFAULT_CODE_PATTERN.digitMax);
-
   return {
-    enabled: pattern?.enabled !== false,
-    letterMin: Math.min(letterMin, letterMax),
-    letterMax: Math.max(letterMin, letterMax),
-    separatorMode: ["optional", "none", "hyphen", "space", "hyphen_or_space"].includes(pattern?.separatorMode)
-      ? pattern.separatorMode
-      : (
-        ["required", "optional", "forbidden"].includes(pattern?.hyphenMode)
-          ? (pattern.hyphenMode === "required" ? "hyphen" : pattern.hyphenMode === "forbidden" ? "none" : "optional")
-          : DEFAULT_CODE_PATTERN.separatorMode
-      ),
-    digitMin: Math.min(digitMin, digitMax),
-    digitMax: Math.max(digitMin, digitMax)
+    ...DEFAULT_CODE_PATTERN,
+    enabled: pattern?.enabled !== false
   };
 }
 
@@ -149,12 +121,7 @@ function normalizeTitleDedupe(config) {
 
 function readPatternFromForm() {
   return normalizeCodePattern({
-    enabled: patternEnabledInput.checked,
-    letterMin: letterMinInput.value,
-    letterMax: letterMaxInput.value,
-    separatorMode: separatorModeInput.value,
-    digitMin: digitMinInput.value,
-    digitMax: digitMaxInput.value
+    enabled: patternEnabledInput.checked
   });
 }
 
@@ -168,11 +135,6 @@ function readDedupeFromForm() {
 function writePatternToForm(pattern) {
   const normalized = normalizeCodePattern(pattern);
   patternEnabledInput.checked = normalized.enabled;
-  letterMinInput.value = String(normalized.letterMin);
-  letterMaxInput.value = String(normalized.letterMax);
-  separatorModeInput.value = normalized.separatorMode;
-  digitMinInput.value = String(normalized.digitMin);
-  digitMaxInput.value = String(normalized.digitMax);
 }
 
 function writeDedupeToForm(config) {
@@ -276,7 +238,7 @@ function normalizeTemplates(result = {}) {
 function readSettingsFromForm() {
   return {
     keywords: parseKeywords(textarea.value),
-    siteRules: parseSiteRules(siteRulesTextarea.value),
+    siteRules: parseSiteRules(siteRulesInput.value),
     codePattern: readPatternFromForm(),
     titleDedupe: readDedupeFromForm(),
     filterEnabled: filterEnabledInput.checked,
@@ -286,7 +248,7 @@ function readSettingsFromForm() {
 
 function writeTemplateToForm(template) {
   textarea.value = normalizeKeywords(template.keywords, []).join("，");
-  siteRulesTextarea.value = normalizeSiteRules(template.siteRules).join("\n");
+  siteRulesInput.value = normalizeSiteRules(template.siteRules).join("，");
   filterEnabledInput.checked = template.filterEnabled !== false;
   invertMatchInput.checked = template.invertMatch === true;
   writePatternToForm(template.codePattern);
@@ -306,6 +268,23 @@ function buildTemplateFromForm(id) {
     titleDedupe: settings.titleDedupe,
     filterEnabled: settings.filterEnabled,
     invertMatch: settings.invertMatch,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function createEmptyTemplate(id, name) {
+  return {
+    id,
+    name: normalizeTemplateName(name, DEFAULT_TEMPLATE_NAME),
+    keywords: [],
+    siteRules: [],
+    codePattern: {
+      ...DEFAULT_CODE_PATTERN,
+      enabled: false
+    },
+    titleDedupe: { ...DEFAULT_TITLE_DEDUPE },
+    filterEnabled: true,
+    invertMatch: false,
     updatedAt: new Date().toISOString()
   };
 }
@@ -435,8 +414,9 @@ function createTemplate() {
 
   const id = createTemplateId();
   selectedTemplateId = id;
-  templateNameInput.value = normalizeTemplateName(requestedName, defaultName);
-  templates[id] = buildTemplateFromForm(id);
+  templates[id] = createEmptyTemplate(id, requestedName || defaultName);
+  renderTemplates();
+  writeTemplateToForm(templates[id]);
 
   saveTemplateState("已新建模板");
 }
@@ -451,10 +431,10 @@ function addCurrentSiteRule() {
       }
 
       const currentHost = currentUrl.hostname.replace(/^www\./i, "");
-      const rules = parseSiteRules(siteRulesTextarea.value);
+      const rules = parseSiteRules(siteRulesInput.value);
       if (!rules.includes(currentHost)) {
         rules.push(currentHost);
-        siteRulesTextarea.value = rules.join("\n");
+        siteRulesInput.value = rules.join("，");
       }
 
       setStatus("已填入当前网站，请保存");
@@ -587,12 +567,7 @@ window.addEventListener("resize", () => {
 });
 
 [
-  patternEnabledInput,
-  letterMinInput,
-  letterMaxInput,
-  separatorModeInput,
-  digitMinInput,
-  digitMaxInput
+  patternEnabledInput
 ].forEach((element) => {
   element.addEventListener("input", () => {
     writePatternToForm(readPatternFromForm());

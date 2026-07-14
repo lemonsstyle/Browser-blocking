@@ -1,8 +1,17 @@
+:root {
+  --accent: #3f6488;
+  --accent-strong: #2e5274;
+  --accent-soft: #eaf0f6;
+  --warm-accent: #b96b42;
+  --warm-strong: #9a5633;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f6f7fb;
-  color: #1f2937;
+  overflow-x: hidden;
+  background: #f8f7f4;
+  color: #293845;
 }
 
 .panel {
@@ -13,8 +22,8 @@ body {
 .topControls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin: 0 0 6px;
+  gap: 8px;
+  margin: 0 0 7px;
   padding: 0 8px;
 }
 
@@ -27,7 +36,7 @@ p {
   margin: 0 0 8px;
   font-size: 12px;
   line-height: 1.35;
-  color: #4b5563;
+  color: #61717e;
 }
 
 textarea {
@@ -35,18 +44,17 @@ textarea {
   width: 100%;
   min-height: 72px;
   padding: 8px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #d8dde1;
   border-radius: 8px;
   resize: vertical;
   font: inherit;
 }
 
 .templateCard,
-.patternCard,
 .dedupeCard {
   margin-top: 6px;
-  padding: 8px;
-  border: 1px solid #d1d5db;
+  padding: 9px;
+  border: 1px solid #d8dde1;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -57,7 +65,7 @@ textarea {
 
 .buttonRow {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .buttonRow button {
@@ -88,7 +96,7 @@ textarea {
 }
 
 #siteRules {
-  min-height: 34px;
+  min-height: 0;
 }
 
 .toggleRow {
@@ -126,7 +134,7 @@ textarea {
   height: 18px;
   margin: 0;
   border-radius: 999px;
-  background: #d1d5db;
+  background: #cbd5df;
   transition: background-color 150ms ease;
 }
 
@@ -143,16 +151,16 @@ textarea {
   transition: transform 150ms ease;
 }
 
-.toggleBox:checked + .toggleSwitch {
-  background: #111827;
+.toggleBox:checked ~ .toggleSwitch {
+  background: var(--warm-accent);
 }
 
-.toggleBox:checked + .toggleSwitch::after {
+.toggleBox:checked ~ .toggleSwitch::after {
   transform: translateX(14px);
 }
 
-.toggleBox:focus-visible + .toggleSwitch {
-  outline: 2px solid #2563eb;
+.toggleBox:focus-visible ~ .toggleSwitch {
+  outline: 2px solid var(--warm-strong);
   outline-offset: 2px;
 }
 
@@ -162,46 +170,30 @@ textarea {
 
 .titleToggle {
   display: flex;
+  align-items: center;
+  gap: 5px;
   margin-left: auto;
   cursor: pointer;
 }
 
-.fieldRow {
-  display: flex;
-  align-items: end;
-  gap: 6px;
-  flex-wrap: nowrap;
-  margin-bottom: 6px;
+.titleToggleText {
+  font-size: 12px;
+  color: #61717e;
 }
 
-.inlineField,
 .selectField {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.inlineField span,
 .selectField span,
 label span {
   display: block;
   margin-bottom: 0;
   font-size: 12px;
-  color: #4b5563;
+  color: #61717e;
   white-space: nowrap;
-}
-
-.inlineField input {
-  width: 42px;
-  min-width: 42px;
-  text-align: center;
-  padding: 4px 6px;
-}
-
-.fieldSuffix {
-  font-size: 12px;
-  color: #4b5563;
-  padding-bottom: 6px;
 }
 
 .selectField {
@@ -219,11 +211,11 @@ label span {
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #4b5563;
+  color: #61717e;
 }
 
 .rangeHeader output {
-  color: #111827;
+  color: var(--warm-strong);
   font-variant-numeric: tabular-nums;
 }
 
@@ -238,7 +230,7 @@ select {
   box-sizing: border-box;
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #d8dde1;
   border-radius: 8px;
   font: inherit;
   background: #fff;
@@ -247,7 +239,7 @@ select {
 input[type="range"] {
   padding: 0;
   border: 0;
-  accent-color: #111827;
+  accent-color: var(--warm-accent);
 }
 
 button {
@@ -256,7 +248,7 @@ button {
   padding: 8px 10px;
   border: 0;
   border-radius: 8px;
-  background: #111827;
+  background: var(--accent);
   color: #fff;
   font: inherit;
   cursor: pointer;
@@ -264,14 +256,14 @@ button {
 
 button.secondary {
   margin-top: 6px;
-  background: #e5e7eb;
-  color: #111827;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
 }
 
 .actionRow {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 9px;
 }
 
 .actionRow button {
@@ -301,7 +293,19 @@ h2 {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 8px 0 6px;
+  margin: 9px 0 7px;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.topBar .sectionHeader {
+  margin: 0;
 }
 
 .mainHeader {
@@ -321,10 +325,10 @@ h2 {
   height: 18px;
   margin: 0;
   padding: 0;
-  border: 1px solid #9ca3af;
+  border: 1px solid #9aabba;
   border-radius: 50%;
   background: #fff;
-  color: #4b5563;
+  color: #536b7f;
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
@@ -332,8 +336,8 @@ h2 {
 
 .infoButton:hover,
 .infoButton[aria-expanded="true"] {
-  border-color: #111827;
-  background: #111827;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -343,9 +347,9 @@ h2 {
   box-sizing: border-box;
   width: min(260px, calc(100vw - 24px));
   padding: 8px 10px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #cdd8e0;
   border-radius: 8px;
-  background: #111827;
+  background: #263b4c;
   color: #fff;
   box-shadow: 0 8px 20px rgb(17 24 39 / 22%);
   font-size: 12px;
@@ -357,7 +361,7 @@ h2 {
   width: min(320px, calc(100vw - 24px));
   max-height: min(460px, calc(100vh - 24px));
   padding: 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #cdd8e0;
   border-radius: 12px;
   box-shadow: 0 16px 32px rgb(17 24 39 / 28%);
 }
@@ -384,8 +388,8 @@ h2 {
   margin: 0;
   padding: 0;
   border-radius: 50%;
-  background: #e5e7eb;
-  color: #111827;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
   font-size: 20px;
   line-height: 1;
 }

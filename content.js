@@ -18,9 +18,9 @@ const DEFAULT_CODE_PATTERN = {
   enabled: true,
   letterMin: 3,
   letterMax: 5,
-  separatorMode: "optional",
+  separatorMode: "hyphen",
   digitMin: 3,
-  digitMax: 4
+  digitMax: 5
 };
 const DEFAULT_TITLE_DEDUPE = {
   enabled: false,
@@ -75,33 +75,10 @@ function buildPattern(keywords) {
   return new RegExp(terms.map(escapeRegExp).join("|"), "i");
 }
 
-function clampLength(value, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 20) {
-    return fallback;
-  }
-  return parsed;
-}
-
 function normalizeCodePattern(pattern) {
-  const letterMin = clampLength(pattern?.letterMin, DEFAULT_CODE_PATTERN.letterMin);
-  const letterMax = clampLength(pattern?.letterMax, DEFAULT_CODE_PATTERN.letterMax);
-  const digitMin = clampLength(pattern?.digitMin, DEFAULT_CODE_PATTERN.digitMin);
-  const digitMax = clampLength(pattern?.digitMax, DEFAULT_CODE_PATTERN.digitMax);
-
   return {
-    enabled: pattern?.enabled !== false,
-    letterMin: Math.min(letterMin, letterMax),
-    letterMax: Math.max(letterMin, letterMax),
-    separatorMode: ["optional", "none", "hyphen", "space", "hyphen_or_space"].includes(pattern?.separatorMode)
-      ? pattern.separatorMode
-      : (
-        ["required", "optional", "forbidden"].includes(pattern?.hyphenMode)
-          ? (pattern.hyphenMode === "required" ? "hyphen" : pattern.hyphenMode === "forbidden" ? "none" : "optional")
-          : DEFAULT_CODE_PATTERN.separatorMode
-      ),
-    digitMin: Math.min(digitMin, digitMax),
-    digitMax: Math.max(digitMin, digitMax)
+    ...DEFAULT_CODE_PATTERN,
+    enabled: pattern?.enabled !== false
   };
 }
 
@@ -269,19 +246,9 @@ function buildCodePattern(patternConfig) {
     return null;
   }
 
-  const separatorPartMap = {
-    none: "",
-    hyphen: "-",
-    space: "\\s",
-    hyphen_or_space: "[-\\s]",
-    optional: "[-\\s]?"
-  };
-
-  const separatorPart = separatorPartMap[pattern.separatorMode] ?? "[-\\s]?";
-
   const source =
     `(?<![a-zA-Z])[a-zA-Z]{${pattern.letterMin},${pattern.letterMax}}` +
-    `${separatorPart}\\d{${pattern.digitMin},${pattern.digitMax}}(?!\\d)`;
+    `-\\d{${pattern.digitMin},${pattern.digitMax}}(?!\\d)`;
 
   return {
     source,

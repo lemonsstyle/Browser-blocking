@@ -8,13 +8,15 @@
   </head>
   <body>
     <main class="panel">
-      <div class="sectionHeader mainHeader">
-        <h1>屏蔽标题关键词</h1>
-        <button type="button" class="infoButton" aria-label="查看关键词过滤说明" aria-expanded="false" data-help="输入要屏蔽的标题词，支持逗号、空格、分号和换行分隔。启用过滤后命中条目会隐藏；开启反转选择后，仅保留命中的条目。">i</button>
-      </div>
-      <div class="sectionHeader templateHeader">
-        <h2>模板</h2>
-        <button type="button" class="infoButton" aria-label="查看模板说明" aria-expanded="false" data-help="每个模板包含一套过滤设置和适用网站。填写 weibo.com 可匹配其所有子域名；填写完整 URL 可限定到此前缀。没有适用网站的模板不会执行过滤。">i</button>
+      <div class="topBar">
+        <div class="sectionHeader mainHeader">
+          <h1>屏蔽标题关键词</h1>
+          <button type="button" class="infoButton" aria-label="查看关键词过滤说明" aria-expanded="false" data-help="输入要屏蔽的标题词，支持逗号、空格、分号和换行分隔。“全部过滤”是总开关；开启“仅保留命中”后，只显示命中关键词或规则的条目。">i</button>
+        </div>
+        <div class="sectionHeader templateHeader">
+          <button type="button" class="infoButton" aria-label="查看模板说明" aria-expanded="false" data-help="每个模板包含一套过滤设置和适用网站。填写 weibo.com 可匹配其所有子域名；填写完整 URL 可限定到此前缀。多个规则可用逗号或分号分隔；没有适用网站的模板不会执行过滤。">i</button>
+          <h2>模板</h2>
+        </div>
       </div>
       <section class="templateCard">
         <div class="templateFields">
@@ -29,7 +31,7 @@
         </div>
         <label class="siteRulesField">
           <span>适用网站 / URL 前缀</span>
-          <textarea id="siteRules" rows="1" spellcheck="false" placeholder="例如：weibo.com 或 https://weibo.com/u/"></textarea>
+          <input id="siteRules" type="text" spellcheck="false" placeholder="例如：weibo.com">
         </label>
         <div class="buttonRow">
           <button id="newTemplate" type="button" class="secondary">新建模板</button>
@@ -40,59 +42,29 @@
         <label class="toggleRow compactToggle">
           <input id="filterEnabled" type="checkbox" class="toggleBox">
           <span class="toggleSwitch" aria-hidden="true"></span>
-          <span class="toggleText">启用过滤</span>
+          <span class="toggleText">全部过滤</span>
         </label>
         <label class="toggleRow compactToggle">
           <input id="invertMatch" type="checkbox" class="toggleBox">
           <span class="toggleSwitch" aria-hidden="true"></span>
-          <span class="toggleText">反转选择</span>
+          <span class="toggleText">仅保留命中</span>
         </label>
       </div>
       <textarea id="keywords" spellcheck="false"></textarea>
       <div class="sectionHeader">
         <h2>编号样式过滤</h2>
-        <button type="button" class="infoButton" aria-label="查看编号样式过滤说明" aria-expanded="false" data-help="按字母位数、分隔符和数字位数识别编号样式。命中该样式的条目会被隐藏。">i</button>
+        <button type="button" class="infoButton" aria-label="查看编号样式过滤说明" aria-expanded="false" data-help="用于识别日本 AV 编号，固定匹配 3–5 位字母、一个连字符和 3–5 位数字，例如 PAD-254、YIUU-762。">i</button>
         <label class="titleToggle">
+          <span class="titleToggleText">启用</span>
           <input id="patternEnabled" type="checkbox" class="toggleBox" aria-label="启用编号样式过滤">
           <span class="toggleSwitch" aria-hidden="true"></span>
-        </label>
-      </div>
-      <div class="patternCard">
-        <div class="fieldRow">
-          <label class="inlineField">
-            <span>字母</span>
-            <input id="letterMin" type="number" min="1" max="20">
-          </label>
-          <label class="inlineField">
-            <span>到</span>
-            <input id="letterMax" type="number" min="1" max="20">
-          </label>
-          <span class="fieldSuffix">位</span>
-          <label class="inlineField">
-            <span>数字</span>
-            <input id="digitMin" type="number" min="1" max="20">
-          </label>
-          <label class="inlineField">
-            <span>到</span>
-            <input id="digitMax" type="number" min="1" max="20">
-          </label>
-          <span class="fieldSuffix">位</span>
-        </div>
-        <label class="selectField">
-          <span>分隔符</span>
-          <select id="separatorMode">
-            <option value="optional">可无、横杠或空格</option>
-            <option value="none">没有分隔符</option>
-            <option value="hyphen">只有横杠</option>
-            <option value="space">只有空格</option>
-            <option value="hyphen_or_space">横杠或空格</option>
-          </select>
         </label>
       </div>
       <div class="sectionHeader">
         <h2>相似标题去重</h2>
         <button type="button" class="infoButton" aria-label="查看相似标题去重说明" aria-expanded="false" data-help="保留最先出现的标题，隐藏后续达到重复度阈值的相似标题。滑块越高，过滤越严格。">i</button>
         <label class="titleToggle">
+          <span class="titleToggleText">启用</span>
           <input id="dedupeEnabled" type="checkbox" class="toggleBox" aria-label="启用相似标题去重">
           <span class="toggleSwitch" aria-hidden="true"></span>
         </label>
