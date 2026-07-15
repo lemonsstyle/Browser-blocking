@@ -36,6 +36,7 @@ let compiledPattern = buildPattern(activeKeywords);
 let compiledCodePattern = buildCodePattern(activeCodePattern);
 let observer;
 let filterPageTimer = null;
+let appliedPageUrl = location.href;
 let pendingLogEntries = [];
 let logFlushTimer = null;
 let logWriteInProgress = false;
@@ -725,6 +726,10 @@ function restartObserver() {
   }
 
   observer = new MutationObserver((mutations) => {
+    if (reloadForChangedPageUrl()) {
+      return;
+    }
+
     let needsFullScan = false;
 
     for (const mutation of mutations) {
@@ -755,6 +760,7 @@ function restartObserver() {
 }
 
 function applyTemplate(template) {
+  appliedPageUrl = location.href;
   activeKeywords = normalizeKeywords(template.keywords, []);
   activeCodePattern = normalizeCodePattern(template.codePattern);
   activeTitleDedupe = normalizeTitleDedupe(template.titleDedupe);
@@ -771,11 +777,21 @@ function loadSettings() {
     [STORAGE_KEY, PATTERN_KEY, TITLE_DEDUPE_KEY, ENABLED_KEY, INVERT_KEY, TEMPLATES_KEY, ACTIVE_TEMPLATE_KEY],
     (result) => {
       const template = chrome.runtime.lastError
-        ? getLegacyDefaultTemplate()
+        ? getInactiveTemplate()
         : resolveTemplateForPage(result);
       applyTemplate(template);
     }
   );
+}
+
+function reloadForChangedPageUrl() {
+  if (location.href === appliedPageUrl) {
+    return false;
+  }
+
+  appliedPageUrl = location.href;
+  loadSettings();
+  return true;
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -797,6 +813,9 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     loadSettings();
   }
 });
+
+window.addEventListener("popstate", reloadForChangedPageUrl);
+window.addEventListener("hashchange", reloadForChangedPageUrl);
 
 if (document.body) {
   loadSettings();

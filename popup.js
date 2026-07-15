@@ -235,6 +235,77 @@ function normalizeTemplates(result = {}) {
   return nextTemplates;
 }
 
+function getSiteRuleScore(rule, pageUrl) {
+  const trimmedRule = String(rule).trim();
+  if (!trimmedRule) {
+    return -1;
+  }
+
+  if (/^https?:\/\//i.test(trimmedRule)) {
+    try {
+      const ruleUrl = new URL(trimmedRule);
+      if (
+        pageUrl.protocol === ruleUrl.protocol &&
+        pageUrl.host === ruleUrl.host &&
+        pageUrl.href.startsWith(ruleUrl.href)
+      ) {
+        return 100000 + ruleUrl.href.length;
+      }
+    } catch {
+      return -1;
+    }
+
+    return -1;
+  }
+
+  const domain = trimmedRule
+    .toLowerCase()
+    .replace(/^\*\./, "")
+    .replace(/^\./, "")
+    .replace(/\/+$/, "");
+
+  if (!/^[a-z0-9.-]+$/.test(domain)) {
+    return -1;
+  }
+
+  const hostname = pageUrl.hostname.toLowerCase();
+  return hostname === domain || hostname.endsWith(`.${domain}`)
+    ? 1000 + domain.length
+    : -1;
+}
+
+function getTemplateForPageUrl(pageUrlValue) {
+  let pageUrl;
+
+  try {
+    pageUrl = new URL(pageUrlValue);
+  } catch {
+    return null;
+  }
+
+  let selectedTemplate = null;
+  let selectedScore = -1;
+  let selectedUpdatedAt = "";
+
+  Object.values(templates).forEach((template) => {
+    const score = normalizeSiteRules(template.siteRules).reduce(
+      (highestScore, rule) => Math.max(highestScore, getSiteRuleScore(rule, pageUrl)),
+      -1
+    );
+
+    if (
+      score > selectedScore ||
+      (score === selectedScore && score >= 0 && template.updatedAt > selectedUpdatedAt)
+    ) {
+      selectedTemplate = template;
+      selectedScore = score;
+      selectedUpdatedAt = template.updatedAt;
+    }
+  });
+
+  return selectedTemplate;
+}
+
 function readSettingsFromForm() {
   return {
     keywords: parseKeywords(textarea.value),
@@ -453,16 +524,26 @@ function loadTemplates() {
           [DEFAULT_TEMPLATE_ID]: getLegacyDefaultTemplate()
         };
         selectedTemplateId = DEFAULT_TEMPLATE_ID;
+        renderTemplates();
+        writeTemplateToForm(getCurrentTemplate());
         setStatus("读取失败");
-      } else {
-        templates = normalizeTemplates(result);
-        selectedTemplateId = typeof result[ACTIVE_TEMPLATE_KEY] === "string" && templates[result[ACTIVE_TEMPLATE_KEY]]
-          ? result[ACTIVE_TEMPLATE_KEY]
-          : DEFAULT_TEMPLATE_ID;
+        return;
       }
 
-      renderTemplates();
-      writeTemplateToForm(getCurrentTemplate());
+      templates = normalizeTemplates(result);
+      selectedTemplateId = typeof result[ACTIVE_TEMPLATE_KEY] === "string" && templates[result[ACTIVE_TEMPLATE_KEY]]
+        ? result[ACTIVE_TEMPLATE_KEY]
+        : DEFAULT_TEMPLATE_ID;
+
+      getCurrentTab((pageUrl) => {
+        const matchedTemplate = getTemplateForPageUrl(pageUrl);
+        if (matchedTemplate) {
+          selectedTemplateId = matchedTemplate.id;
+        }
+
+        renderTemplates();
+        writeTemplateToForm(getCurrentTemplate());
+      });
     }
   );
 }
